@@ -123,6 +123,17 @@ module "ecs_to_vpce_egress" {
   ip_protocol       = "tcp"
 }
 
+module "ecs_to_provider_egress" {
+  source = "../../../modules/network/security-group-egress-rule"
+
+  security_group_id = module.ecs_sg.id
+  description       = "Provider API port to VPC (PrivateLink endpoint)"
+  cidr_ipv4         = module.vpc.cidr_block
+  from_port         = 8000
+  to_port           = 8000
+  ip_protocol       = "tcp"
+}
+
 module "ecs_to_s3_egress" {
   source = "../../../modules/network/security-group-egress-rule"
 

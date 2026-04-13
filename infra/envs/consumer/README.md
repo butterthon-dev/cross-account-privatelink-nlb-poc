@@ -97,3 +97,83 @@ terraform apply
 curl -i https://consumer.<domain>/healthz   # 200
 curl -i http://consumer.<domain>/healthz    # 301 → HTTPS
 ```
+
+## PrivateLink 経由で Provider を呼び出す手順
+
+Provider の ECS を内部公開する NLB + VPC Endpoint Service (PrivateLink) に対し、Consumer 側の Interface VPC Endpoint から接続する構成です。クロスアカウントのため **Provider apply → Consumer apply** の順で実施します。
+
+### Phase A: Provider の `secrets.auto.tfvars` に Consumer AWS アカウント ID を設定
+
+Consumer の AWS アカウント ID を取得:
+
+```bash
+# Consumer 側の AWS 認証情報で
+aws sts get-caller-identity --query Account --output text
+```
+
+`infra/envs/provider/secrets.auto.tfvars` に追記:
+
+```hcl
+consumer_account_ids = ["<Consumer の AWSアカウントID>"]
+```
+
+Provider を apply:
+
+```bash
+cd ../provider
+terraform apply
+```
+
+作成されるもの:
+
+- NLB (internal) + ターゲットグループ + リスナー (TCP 8000)
+- VPC Endpoint Service (Consumer アカウントを `allowed_principals` に追加、自動承認)
+- Provider ECS サービスが NLB ターゲットグループに登録
+
+`endpoint_service_name` を取得:
+
+```bash
+terraform output endpoint_service_name
+# → com.amazonaws.vpce.us-west-2.vpce-svc-xxxxxxxxxxxxxxxxx
+```
+
+### Phase B: Consumer の `secrets.auto.tfvars` に endpoint service 名を設定
+
+`infra/envs/consumer/secrets.auto.tfvars` に追記:
+
+```hcl
+provider_endpoint_service_name = "com.amazonaws.vpce.us-west-2.vpce-svc-xxxxxxxxxxxxxxxxx"
+```
+
+Consumer を apply:
+
+```bash
+cd ../consumer
+terraform apply
+```
+
+作成されるもの:
+
+- PrivateLink 用 Interface VPC Endpoint (private DNS 無効)
+- Endpoint 用 SG (Consumer ECS SG からの 8000 ingress)
+- Consumer ECS SG に 8000 egress (VPC CIDR 宛) を追加
+
+`provider_endpoint_dns_name` を取得:
+
+```bash
+terraform output provider_endpoint_dns_name
+# → vpce-xxxxxxxx-yyyyyyyy.vpce-svc-zzzz.us-west-2.vpce.amazonaws.com
+```
+
+### Phase C: 動作確認
+
+Consumer の ECS タスクに入って Provider へアクセス:
+
+```bash
+# Fargate exec などで consumer コンテナに入ってから
+curl -i "http://<provider_endpoint_dns_name>:8000/healthz"
+# → 200 {"message":"healthy from provider."}
+```
+
+Consumer アプリに `PROVIDER_API_URL=http://<provider_endpoint_dns_name>:8000` を環境変数として渡せば、HTTPS の Consumer 公開エンドポイント越しに Provider API を呼び出すフルフローが動作します。
+

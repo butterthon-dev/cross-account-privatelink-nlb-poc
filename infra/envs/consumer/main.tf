@@ -18,6 +18,16 @@ module "alb" {
   enable_https          = var.enable_https
 }
 
+module "privatelink" {
+  source = "../../stacks/consumer/privatelink"
+
+  name_prefix                    = var.project
+  vpc_id                         = module.network.vpc_id
+  subnet_ids                     = module.network.private_subnet_ids
+  ecs_security_group_id          = module.network.ecs_security_group_id
+  provider_endpoint_service_name = var.provider_endpoint_service_name
+}
+
 module "ecs" {
   source = "../../stacks/consumer/ecs"
 
@@ -40,4 +50,9 @@ output "alb_zone_id" {
 output "cert_validation_records" {
   description = "ACM DNS検証レコード (Provider側のHosted Zoneに登録する)"
   value       = module.alb.certificate_validation_records
+}
+
+output "provider_endpoint_dns_name" {
+  description = "Provider API呼び出し用 PrivateLink endpoint DNS名"
+  value       = module.privatelink.endpoint_dns_name
 }

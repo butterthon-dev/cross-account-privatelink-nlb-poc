@@ -35,3 +35,9 @@ variable "route_table_ids" {
   description = "Gatewayエンドポイント用のルートテーブルID"
   default     = []
 }
+
+variable "private_dns_enabled" {
+  type        = bool
+  description = "プライベートDNSを有効化するか (Interface用)"
+  default     = true
+}

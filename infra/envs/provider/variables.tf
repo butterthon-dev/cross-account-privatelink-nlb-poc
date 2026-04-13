@@ -40,5 +40,9 @@ variable "cert_validation_records" {
     value = string
   }))
   description = "Consumer ACM証明書のDNS検証用レコード (Consumer apply後に設定)"
-  default     = []
+}
+
+variable "consumer_account_ids" {
+  type        = list(string)
+  description = "PrivateLink接続を許可するConsumerのAWSアカウントIDリスト"
 }

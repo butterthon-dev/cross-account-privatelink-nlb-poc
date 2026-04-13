@@ -12,3 +12,9 @@ variable "ecs_security_group_id" {
   type        = string
   description = "ECS用セキュリティグループのID"
 }
+
+variable "target_group_arn" {
+  type        = string
+  description = "NLBのターゲットグループARN (未指定時はLBに登録しない)"
+  default     = null
+}
