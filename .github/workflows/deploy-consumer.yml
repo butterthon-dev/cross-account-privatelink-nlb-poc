@@ -76,13 +76,15 @@ jobs:
           envsubst < "${TASK_DEFINITION_TEMPLATE}" > "${rendered}"
           echo "path=${rendered}" >> "$GITHUB_OUTPUT"
 
-      - name: Render task definition (inject image)
+      - name: Render task definition (inject image + env vars)
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ${{ steps.envsubst.outputs.path }}
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.build.outputs.image }}
+          environment-variables: |
+            PROVIDER_API_URL=${{ vars.PROVIDER_API_URL }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
