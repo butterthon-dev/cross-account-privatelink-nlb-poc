@@ -12,3 +12,23 @@ variable "private_subnets" {
   type        = map(string)
   description = "プライベートサブネットのマップ（key: AZ, value: CIDR）"
 }
+
+variable "public_subnets" {
+  type        = map(string)
+  description = "パブリックサブネットのマップ（key: AZ, value: CIDR）"
+}
+
+variable "domain" {
+  type        = string
+  description = "親ドメイン (Hosted Zoneの名前)"
+}
+
+variable "subdomain" {
+  type        = string
+  description = "自サービスのサブドメイン名"
+}
+
+variable "enable_https" {
+  type        = bool
+  description = "HTTPSリスナーを有効化するか。初回はfalse、Providerで検証レコード登録後にtrueへ"
+}

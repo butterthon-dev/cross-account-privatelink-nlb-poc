@@ -31,6 +31,8 @@ resource "aws_ecs_service" "this" {
   task_definition = aws_ecs_task_definition.this.arn
   desired_count   = var.desired_count
 
+  health_check_grace_period_seconds = var.target_group_arn == null ? null : var.health_check_grace_period_seconds
+
   capacity_provider_strategy {
     capacity_provider = "FARGATE_SPOT"
     weight            = 1
@@ -42,7 +44,16 @@ resource "aws_ecs_service" "this" {
     assign_public_ip = false
   }
 
+  dynamic "load_balancer" {
+    for_each = var.target_group_arn == null ? [] : [1]
+    content {
+      target_group_arn = var.target_group_arn
+      container_name   = var.container_name
+      container_port   = var.container_port
+    }
+  }
+
   lifecycle {
-    ignore_changes = [ task_definition, desired_count ]
+    ignore_changes = [task_definition, desired_count]
   }
 }

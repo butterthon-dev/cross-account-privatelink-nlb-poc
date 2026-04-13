@@ -74,10 +74,10 @@ module "ecs_to_vpce_egress" {
 module "ecs_to_s3_egress" {
   source = "../../../modules/network/security-group-egress-rule"
 
-  for_each = toset(module.gateway_vpc_endpoint.prefix_list_ids)
+  for_each = module.gateway_vpc_endpoint.prefix_list_ids
 
   security_group_id = module.ecs_sg.id
-  description       = "HTTPS to S3 gateway endpoint"
+  description       = "HTTPS to ${each.key} gateway endpoint"
   prefix_list_id    = each.value
   from_port         = 443
   to_port           = 443

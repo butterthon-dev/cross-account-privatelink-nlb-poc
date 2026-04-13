@@ -66,3 +66,15 @@ variable "region" {
   type        = string
   description = "AWSリージョン"
 }
+
+variable "target_group_arn" {
+  type        = string
+  description = "ALB/NLBのターゲットグループARN。未指定時はLBに登録しない"
+  default     = null
+}
+
+variable "health_check_grace_period_seconds" {
+  type        = number
+  description = "LB登録時のヘルスチェック猶予時間(秒)"
+  default     = 60
+}

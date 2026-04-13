@@ -12,3 +12,8 @@ variable "private_subnets" {
   type        = map(string)
   description = "プライベートサブネットのマップ（key: AZ, value: CIDR）"
 }
+
+variable "public_subnets" {
+  type        = map(string)
+  description = "パブリックサブネットのマップ（key: AZ, value: CIDR）"
+}

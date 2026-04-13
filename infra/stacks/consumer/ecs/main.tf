@@ -60,4 +60,5 @@ module "service" {
   security_group_ids = [var.ecs_security_group_id]
   log_group_name     = module.log_group.name
   region             = data.aws_region.current.name
+  target_group_arn   = var.target_group_arn
 }
