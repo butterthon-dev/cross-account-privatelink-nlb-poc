@@ -1,0 +1,93 @@
+name: Deploy provider to ECS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/provider/**"
+      - ".github/workflows/deploy-provider.yml"
+      - ".github/ecs/provider-task-definition.json"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-provider
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REPOSITORY: provider-repo
+  ECS_CLUSTER: provider-cluster
+  ECS_SERVICE: provider-service
+  CONTAINER_NAME: provider
+  TASK_DEFINITION_TEMPLATE: .github/ecs/provider-task-definition.json
+
+permissions:
+  id-token: write # OIDCでAWSに認証するために必要
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials (OIDC)
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_PROVIDER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          LATEST_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+
+          docker buildx build \
+            --file backend/provider/Dockerfile \
+            --tag "${IMAGE_URI}" \
+            --tag "${LATEST_URI}" \
+            --cache-from "type=registry,ref=${LATEST_URI}" \
+            --cache-to "type=inline" \
+            --push \
+            backend/
+
+          echo "image=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+
+      - name: Render task definition (substitute env vars)
+        id: envsubst
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.aws-creds.outputs.aws-account-id }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          rendered="$(mktemp --suffix=.json)"
+          envsubst < "${TASK_DEFINITION_TEMPLATE}" > "${rendered}"
+          echo "path=${rendered}" >> "$GITHUB_OUTPUT"
+
+      - name: Render task definition (inject image)
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.envsubst.outputs.path }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build.outputs.image }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
