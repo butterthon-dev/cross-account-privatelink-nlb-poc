@@ -8,6 +8,11 @@ output "dns_name" {
   value       = var.type == "Interface" ? aws_vpc_endpoint.this.dns_entry[0].dns_name : null
 }
 
+output "dns_hosted_zone_id" {
+  description = "VPCエンドポイントのHosted Zone ID (Route53 ALIAS ターゲット用、Interface型のみ)"
+  value       = var.type == "Interface" ? aws_vpc_endpoint.this.dns_entry[0].hosted_zone_id : null
+}
+
 output "dns_entries" {
   description = "VPCエンドポイントのDNSエントリ一覧 (Interface型のみ)"
   value       = var.type == "Interface" ? aws_vpc_endpoint.this.dns_entry : []

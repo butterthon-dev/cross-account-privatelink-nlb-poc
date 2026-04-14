@@ -37,3 +37,8 @@ variable "provider_endpoint_service_name" {
   type        = string
   description = "Provider側 VPC Endpoint Service 名 (Provider apply後に設定)"
 }
+
+variable "provider_service_subdomain" {
+  type        = string
+  description = "Provider側サービスのサブドメイン (NLB TLS証明書ドメインの <subdomain>.<domain>)"
+}

@@ -102,7 +102,7 @@ curl -i http://consumer.<domain>/healthz    # 301 → HTTPS
 
 Provider の ECS を内部公開する NLB + VPC Endpoint Service (PrivateLink) に対し、Consumer 側の Interface VPC Endpoint から接続する構成です。クロスアカウントのため **Provider apply → Consumer apply** の順で実施します。
 
-### Phase A: Provider の `secrets.auto.tfvars` に Consumer AWS アカウント ID を設定
+### Phase A1: Provider の `secrets.auto.tfvars` に Consumer AWS アカウント ID を設定 + 初回 apply
 
 Consumer の AWS アカウント ID を取得:
 
@@ -117,7 +117,7 @@ aws sts get-caller-identity --query Account --output text
 consumer_account_ids = ["<Consumer の AWSアカウントID>"]
 ```
 
-Provider を apply:
+`infra/envs/provider/provider.auto.tfvars` の `enable_private_dns` が `false` であることを確認し、Provider を apply:
 
 ```bash
 cd ../provider
@@ -126,11 +126,42 @@ terraform apply
 
 作成されるもの:
 
-- NLB (internal) + ターゲットグループ + リスナー (TCP 8000)
-- VPC Endpoint Service (Consumer アカウントを `allowed_principals` に追加、自動承認)
+- NLB (internal) + ターゲットグループ + TLS リスナー (443) + 自アカウントの ACM 証明書 (`<service_subdomain>.<domain>`)
+- VPC Endpoint Service (Consumer アカウントを `allowed_principals` に追加、**`private_dns_name` は未設定**)
 - Provider ECS サービスが NLB ターゲットグループに登録
 
-`endpoint_service_name` を取得:
+### Phase A2: `enable_private_dns = true` に切替えて再 apply (2 段)
+
+`infra/envs/provider/provider.auto.tfvars` を編集:
+
+```hcl
+enable_private_dns = true
+```
+
+#### Phase A2-a: まず Endpoint Service に private_dns_name を付与 (target 指定)
+
+AWS Provider の性質上、`private_dns_name` を設定しないと `private_dns_name_configuration` 属性は空のままで参照できません。最初に Endpoint Service 単体だけを更新して state をリフレッシュします。
+
+```bash
+terraform apply -target=module.privatelink.module.endpoint_service
+```
+
+このフェーズで実行されるもの:
+
+- Endpoint Service に `private_dns_name = <service_subdomain>.<domain>` を付与 (状態は `pendingVerification` になる)
+
+#### Phase A2-b: TXT 検証レコード作成 + 検証完了待機
+
+```bash
+terraform apply
+```
+
+このフェーズで実行されるもの:
+
+- AWS が発行する TXT 所有権検証レコードを Public Hosted Zone に登録
+- `aws_vpc_endpoint_service_private_dns_verification` が検証完了まで待機 (通常数分)
+
+検証完了後、`endpoint_service_name` を取得:
 
 ```bash
 terraform output endpoint_service_name
@@ -154,16 +185,10 @@ terraform apply
 
 作成されるもの:
 
-- PrivateLink 用 Interface VPC Endpoint (private DNS 無効)
-- Endpoint 用 SG (Consumer ECS SG からの 8000 ingress)
-- Consumer ECS SG に 8000 egress (VPC CIDR 宛) を追加
+- PrivateLink 用 Interface VPC Endpoint (`private_dns_enabled = true`)
+- Endpoint 用 SG (Consumer ECS SG からの 443 ingress)
 
-`provider_endpoint_dns_name` を取得:
-
-```bash
-terraform output provider_endpoint_dns_name
-# → vpce-xxxxxxxx-yyyyyyyy.vpce-svc-zzzz.us-west-2.vpce.amazonaws.com
-```
+`private_dns_enabled = true` により、Provider 側 Endpoint Service の `private_dns_name` (例: `provider.example.com`) が Consumer VPC 内で自動的に VPC Endpoint の ENI に解決されます。Consumer 側で Private Hosted Zone を自作する必要はありません。
 
 ### Phase C: 動作確認
 
@@ -171,9 +196,12 @@ Consumer の ECS タスクに入って Provider へアクセス:
 
 ```bash
 # Fargate exec などで consumer コンテナに入ってから
-curl -i "http://<provider_endpoint_dns_name>:8000/healthz"
+API_URL=$(terraform output -raw provider_api_url)   # 例: https://provider.example.com
+curl -i "${API_URL}/healthz"
 # → 200 {"message":"healthy from provider."}
 ```
 
-Consumer アプリに `PROVIDER_API_URL=http://<provider_endpoint_dns_name>:8000` を環境変数として渡せば、HTTPS の Consumer 公開エンドポイント越しに Provider API を呼び出すフルフローが動作します。
+### GitHub Actions の `PROVIDER_API_URL` 変数
+
+GitHub リポジトリ変数の `PROVIDER_API_URL` には上記 `provider_api_url` output の値 (例: `https://provider.example.com`) を設定してください。設定後に Consumer の ECS を再デプロイすれば、環境変数として注入されます。
 

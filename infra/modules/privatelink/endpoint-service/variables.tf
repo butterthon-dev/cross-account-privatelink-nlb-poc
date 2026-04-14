@@ -19,3 +19,9 @@ variable "allowed_principals" {
   type        = list(string)
   default     = []
 }
+
+variable "private_dns_name" {
+  description = "Endpoint Service に紐付ける Private DNS name (例: provider.example.com)。Consumer側で private_dns_enabled=true を使うと自動解決される。指定時はドメイン所有権の TXT 検証が必要"
+  type        = string
+  default     = null
+}

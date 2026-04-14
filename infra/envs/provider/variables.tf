@@ -46,3 +46,14 @@ variable "consumer_account_ids" {
   type        = list(string)
   description = "PrivateLink接続を許可するConsumerのAWSアカウントIDリスト"
 }
+
+variable "service_subdomain" {
+  type        = string
+  description = "自サービスのサブドメイン名 (NLB TLS用 FQDN = <service_subdomain>.<domain>)"
+}
+
+variable "enable_private_dns" {
+  type        = bool
+  description = "Endpoint Service の Private DNS name を有効化するか。初回はfalse、再apply時にtrueで検証を走らせる"
+  default     = false
+}

@@ -17,3 +17,6 @@ subdomain = "consumer"
 # 初回: false で証明書+ALB(HTTPのみ)を作成
 # Providerで検証レコードを登録し証明書がISSUEDになったら: true でHTTPSリスナーを作成
 enable_https = true
+
+# PrivateLink (Provider側 NLB TLS の FQDN = <provider_service_subdomain>.<domain>)
+provider_service_subdomain = "provider"

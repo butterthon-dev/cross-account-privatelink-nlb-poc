@@ -45,3 +45,4 @@ terraform.rc
 
 .terraform.lock.hcl
 !provider.auto.tfvars
+!consumer.auto.tfvars

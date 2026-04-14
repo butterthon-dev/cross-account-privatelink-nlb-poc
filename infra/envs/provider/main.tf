@@ -13,6 +13,9 @@ module "privatelink" {
   vpc_id              = module.network.vpc_id
   subnet_ids          = module.network.private_subnet_ids
   allowed_account_ids = var.consumer_account_ids
+  domain              = var.domain
+  service_subdomain   = var.service_subdomain
+  enable_private_dns  = var.enable_private_dns
 }
 
 module "ecs" {
@@ -42,4 +45,9 @@ output "consumer_fqdn" {
 output "endpoint_service_name" {
   description = "VPC Endpoint Service 名 (Consumer側で secrets.auto.tfvars に設定)"
   value       = module.privatelink.endpoint_service_name
+}
+
+output "service_fqdn" {
+  description = "NLB TLS の FQDN (Consumer側で provider_service_fqdn として使用)"
+  value       = module.privatelink.service_fqdn
 }
